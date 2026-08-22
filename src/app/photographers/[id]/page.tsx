@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth';
-import BookingForm from '@/components/BookingForm';
+import BookingForm from "@/components/bookings/BookingForm";
 import Card from '@/components/ui/Card';
 import { notFound } from 'next/navigation';
 
