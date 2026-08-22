@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import type { UserRole } from '@/lib/types';
+import type { UserRole } from '@/lib/types/database';
 
 export default function SignupPage() {
   const router = useRouter();
