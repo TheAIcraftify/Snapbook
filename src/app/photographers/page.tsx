@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import PhotographerCard from "@/components/photographers/PhotographerCard";
-import type { Photographer, Profile } from '@/lib/types';
+import type { Photographer, Profile } from '@/lib/types/database';
 
 export default async function PhotographersPage() {
   const supabase = createClient();
