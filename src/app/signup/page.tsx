@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import type { UserRole } from '@/lib/types/database';
+import type { UserRole } from '@/lib/types';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -26,24 +26,18 @@ export default function SignupPage() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-    });
-
-    if (signUpError || !data.user) {
-      setError(signUpError?.message || 'Could not create account.');
-      setLoading(false);
-      return;
-    }
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      full_name: fullName,
-      role,
+      options: {
+        data: {
+          full_name: fullName,
+          role,
+        },
+      },
     });
 
     setLoading(false);
 
-    if (profileError) {
-      setError(profileError.message);
+    if (signUpError || !data.user) {
+      setError(signUpError?.message || 'Could not create account.');
       return;
     }
 
