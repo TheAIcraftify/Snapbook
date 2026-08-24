@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Input from '@/components/ui/Input';
+import PasswordInput from '@/components/ui/PasswordInput';
 import Button from '@/components/ui/Button';
 
 export default function LoginPage() {
@@ -58,31 +59,4 @@ export default function LoginPage() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <Input
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Logging in...' : 'Log in'}
-        </Button>
-      </form>
-      <p className="mt-4 text-sm text-gray-600">
-        <Link href="/forgot-password" className="text-brand-600 font-medium">
-          Forgot password?
-        </Link>
-      </p>
-      <p className="mt-2 text-sm text-gray-600">
-        Don&apos;t have an account?{' '}
-        <Link href="/signup" className="text-brand-600 font-medium">
-          Sign up
-        </Link>
-      </p>
-    </div>
-  );
-}
+          requir
