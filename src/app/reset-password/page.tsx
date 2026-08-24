@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Input from '@/components/ui/Input';
+import PasswordInput from '@/components/ui/PasswordInput';
 import Button from '@/components/ui/Button';
 
 export default function ResetPasswordPage() {
@@ -79,17 +80,15 @@ export default function ResetPasswordPage() {
 
       {ready && (
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-          <Input
+          <PasswordInput
             label="New password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
 
-          <Input
+          <PasswordInput
             label="Confirm password"
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
