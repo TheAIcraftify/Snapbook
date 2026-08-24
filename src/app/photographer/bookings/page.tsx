@@ -2,9 +2,11 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Card from '@/components/ui/Card';
+import BookingActions from '@/components/BookingActions';
 
 export default async function PhotographerBookingsPage() {
   const profile = await getCurrentProfile();
+
   if (!profile) redirect('/login');
   if (profile.role !== 'photographer') redirect('/');
 
@@ -26,24 +28,44 @@ export default async function PhotographerBookingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-bold text-gray-900">Booking requests</h1>
+      <h1 className="text-2xl font-bold text-gray-900">
+        Booking requests
+      </h1>
+
       <div className="mt-6 flex flex-col gap-3">
         {(bookings || []).map((b) => (
           <Card key={b.id}>
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">{b.event_type}</h2>
+              <h2 className="font-semibold text-gray-900">
+                {b.event_type}
+              </h2>
+
               <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize text-gray-600">
                 {b.status}
               </span>
             </div>
+
             <p className="mt-1 text-sm text-gray-500">
               {b.event_date} · {b.location}
             </p>
-            {b.message && <p className="mt-2 text-sm text-gray-600">{b.message}</p>}
+
+            {b.message && (
+              <p className="mt-2 text-sm text-gray-600">
+                {b.message}
+              </p>
+            )}
+
+            <BookingActions
+              bookingId={b.id}
+              status={b.status}
+            />
           </Card>
         ))}
+
         {(!bookings || bookings.length === 0) && (
-          <p className="text-gray-500">No booking requests yet.</p>
+          <p className="text-gray-500">
+            No booking requests yet.
+          </p>
         )}
       </div>
     </div>
