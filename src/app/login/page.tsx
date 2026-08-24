@@ -31,32 +31,3 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
-
-    setLoading(false);
-
-    if (profile?.role === 'photographer') {
-      router.push('/photographer/dashboard');
-    } else if (profile?.role === 'admin') {
-      router.push('/admin/dashboard');
-    } else {
-      router.push('/customer/dashboard');
-    }
-    router.refresh();
-  }
-
-  return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="text-2xl font-bold text-gray-900">Log in</h1>
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-        <Input
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          requir
