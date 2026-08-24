@@ -67,7 +67,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        {error && <p <p className="mt-4 text-sm text-gray-600">
+        {error && <p className="mt-4 text-sm text-gray-600">
   <Link href="/forgot-password" className="text-brand-600 font-medium">
     Forgot password?
   </Link>
