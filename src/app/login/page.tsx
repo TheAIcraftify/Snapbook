@@ -67,15 +67,22 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        {error && <p className="mt-4 text-sm text-gray-600">
-  <Link href="/forgot-password" className="text-brand-600 font-medium">
-    Forgot password?
-  </Link>
-</p>
-
-<p className="mt-2 text-sm text-gray-600">
-  Don't have an account?{' '}
-  <Link href="/signup" className="text-brand-600 font-medium">
-    Sign up
-  </Link>
-</p>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Logging in...' : 'Log in'}
+        </Button>
+      </form>
+      <p className="mt-4 text-sm text-gray-600">
+        <Link href="/forgot-password" className="text-brand-600 font-medium">
+          Forgot password?
+        </Link>
+      </p>
+      <p className="mt-2 text-sm text-gray-600">
+        Don&apos;t have an account?{' '}
+        <Link href="/signup" className="text-brand-600 font-medium">
+          Sign up
+        </Link>
+      </p>
+    </div>
+  );
+}
