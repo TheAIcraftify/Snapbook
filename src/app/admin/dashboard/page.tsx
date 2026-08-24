@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Card from '@/components/ui/Card';
+import AdminVerifyButtons from '@/components/AdminVerifyButtons';
 
 export default async function AdminDashboardPage() {
   const profile = await getCurrentProfile();
@@ -33,10 +34,7 @@ export default async function AdminDashboardPage() {
             <p className="text-sm text-gray-600">Email: {p.email}</p>
             <p className="text-sm text-gray-600">Instagram: {p.instagram}</p>
             <p className="text-sm text-gray-600">City: {p.city}</p>
-            <p className="mt-2 text-xs text-gray-400">
-              Approve or reject this photographer directly in the Supabase table editor by
-              changing verification_status to &quot;verified&quot; or &quot;rejected&quot;.
-            </p>
+            <AdminVerifyButtons photographerId={p.id} />
           </Card>
         ))}
         {(!pending || pending.length === 0) && (
