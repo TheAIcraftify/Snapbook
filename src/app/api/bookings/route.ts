@@ -121,6 +121,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError) {
+    return NextResponse.json(
+      { error: profileError.message },
+      { status: 500 }
+    );
+  }
+
   const searchParams = new URL(request.url).searchParams;
   const photographerId = searchParams.get('photographer_id');
 
@@ -145,12 +158,6 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
   if (profile?.role === 'customer') {
     const { data, error } = await supabase
       .from('bookings')
@@ -171,11 +178,19 @@ export async function GET(request: NextRequest) {
   }
 
   if (profile?.role === 'photographer') {
-    const { data: photographer } = await supabase
-      .from('photographers')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: photographer, error: photographerError } =
+      await supabase
+        .from('photographers')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (photographerError) {
+      return NextResponse.json(
+        { error: photographerError.message },
+        { status: 500 }
+      );
+    }
 
     if (!photographer) {
       return NextResponse.json({
@@ -201,10 +216,9 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(
-    { error: 'Unauthorized role.' },
-    { status: 403 }
-  );
+  return NextResponse.json({
+    bookings: [],
+  });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -221,46 +235,94 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const { data: photographer } = await supabase
-    .from('photographers')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-  if (!photographer) {
+  if (profileError) {
     return NextResponse.json(
-      { error: 'Only photographers can update bookings.' },
+      { error: profileError.message },
+      { status: 500 }
+    );
+  }
+
+  if (profile?.role !== 'photographer') {
+    return NextResponse.json(
+      { error: 'Only photographers can update booking status.' },
       { status: 403 }
     );
   }
 
   const body = await request.json();
+
   const { booking_id, status } = body;
 
   if (!booking_id || !status) {
     return NextResponse.json(
-      { error: 'Missing required fields.' },
+      { error: 'booking_id and status are required.' },
       { status: 400 }
     );
   }
 
-  if (!['accepted', 'declined'].includes(status)) {
+  if (
+    !['accepted', 'declined', 'completed'].includes(status)
+  ) {
     return NextResponse.json(
       { error: 'Invalid status value.' },
       { status: 400 }
     );
   }
 
-  const { data: booking } = await supabase
-    .from('bookings')
-    .select('id, photographer_id')
-    .eq('id', booking_id)
-    .single();
+  const { data: photographer, error: photographerError } =
+    await supabase
+      .from('photographers')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-  if (!booking || booking.photographer_id !== photographer.id) {
+  if (photographerError) {
     return NextResponse.json(
-      { error: 'You do not have permission to update this booking.' },
-      { status: 403 }
+      { error: photographerError.message },
+      { status: 500 }
+    );
+  }
+
+  if (!photographer) {
+    return NextResponse.json(
+      { error: 'Photographer profile not found.' },
+      { status: 404 }
+    );
+  }
+
+  const allowedCurrentStatuses =
+    status === 'completed'
+      ? ['accepted']
+      : ['pending'];
+
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .select('id, status')
+    .eq('id', booking_id)
+    .eq('photographer_id', photographer.id)
+    .in('status', allowedCurrentStatuses)
+    .maybeSingle();
+
+  if (bookingError) {
+    return NextResponse.json(
+      { error: bookingError.message },
+      { status: 500 }
+    );
+  }
+
+  if (!booking) {
+    return NextResponse.json(
+      {
+        error:
+          'Booking not found or this status change is not allowed.',
+      },
+      { status: 404 }
     );
   }
 
@@ -268,6 +330,7 @@ export async function PATCH(request: NextRequest) {
     .from('bookings')
     .update({ status })
     .eq('id', booking_id)
+    .eq('photographer_id', photographer.id)
     .select()
     .single();
 
@@ -278,5 +341,8 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ booking: data });
-}
+  return NextResponse.json({
+    success: true,
+    booking: data,
+  });
+    }
