@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
@@ -17,39 +17,94 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
   const [location, setLocation] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingDates, setLoadingDates] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
 
-  // Today's date — past dates cannot be selected
   const today = new Date().toISOString().split('T')[0];
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  useEffect(() => {
+    async function loadBookedDates() {
+      try {
+        const res = await fetch(
+          `/api/bookings?photographer_id=${photographerId}`
+        );
+
+        if (!res.ok) {
+          throw new Error('Failed to load booked dates');
+        }
+
+        const data = await res.json();
+        setBookedDates(data.bookedDates || []);
+      } catch {
+        setError('Unable to load booking availability.');
+      } finally {
+        setLoadingDates(false);
+      }
+    }
+
+    loadBookedDates();
+  }, [photographerId]);
+
+  function handleDateChange(value: string) {
     setError(null);
 
-    const res = await fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        photographer_id: photographerId,
-        event_date: eventDate,
-        event_type: eventType,
-        location,
-        message,
-      }),
-    });
-
-    setLoading(false);
-
-    if (!res.ok) {
-      const body = await res.json();
-      setError(body.error || 'Something went wrong. Please try again.');
+    if (bookedDates.includes(value)) {
+      setEventDate('');
+      setError(
+        'This date is already booked. Please select another date.'
+      );
       return;
     }
 
-    setSuccess(true);
-    router.refresh();
+    setEventDate(value);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (bookedDates.includes(eventDate)) {
+      setError(
+        'This date is already booked. Please select another date.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          photographer_id: photographerId,
+          event_date: eventDate,
+          event_type: eventType,
+          location,
+          message,
+        }),
+      });
+
+      const body = await res.json();
+
+      if (!res.ok) {
+        setError(
+          body.error || 'Something went wrong. Please try again.'
+        );
+        return;
+      }
+
+      setSuccess(true);
+      router.refresh();
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (success) {
@@ -62,14 +117,29 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Input
-        label="Event date"
-        type="date"
-        value={eventDate}
-        min={today}
-        onChange={(e) => setEventDate(e.target.value)}
-        required
-      />
+      <div>
+        <Input
+          label="Event date"
+          type="date"
+          value={eventDate}
+          min={today}
+          onChange={(e) => handleDateChange(e.target.value)}
+          required
+          disabled={loadingDates}
+        />
+
+        {loadingDates && (
+          <p className="mt-1 text-xs text-gray-500">
+            Checking availability...
+          </p>
+        )}
+
+        {!loadingDates && (
+          <p className="mt-1 text-xs text-gray-500">
+            Already booked dates cannot be selected.
+          </p>
+        )}
+      </div>
 
       <Input
         label="Event type"
@@ -105,7 +175,7 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
         </p>
       )}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading || loadingDates}>
         {loading ? 'Sending...' : 'Request booking'}
       </Button>
     </form>
