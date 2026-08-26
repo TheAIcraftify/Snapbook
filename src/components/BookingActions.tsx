@@ -10,7 +10,9 @@ type Props = {
 export default function BookingActions({ bookingId, status }: Props) {
   const [loading, setLoading] = useState(false);
 
-  async function updateStatus(newStatus: 'accepted' | 'declined') {
+  async function updateStatus(
+    newStatus: 'accepted' | 'declined' | 'completed'
+  ) {
     setLoading(true);
 
     try {
@@ -40,27 +42,41 @@ export default function BookingActions({ bookingId, status }: Props) {
     }
   }
 
-  if (status !== 'pending') {
-    return null;
+  if (status === 'pending') {
+    return (
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => updateStatus('accepted')}
+          disabled={loading}
+          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {loading ? 'Updating...' : 'Accept'}
+        </button>
+
+        <button
+          onClick={() => updateStatus('declined')}
+          disabled={loading}
+          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Decline
+        </button>
+      </div>
+    );
   }
 
-  return (
-    <div className="mt-4 flex gap-3">
-      <button
-        onClick={() => updateStatus('accepted')}
-        disabled={loading}
-        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
-        {loading ? 'Updating...' : 'Accept'}
-      </button>
+  if (status === 'accepted') {
+    return (
+      <div className="mt-4">
+        <button
+          onClick={() => updateStatus('completed')}
+          disabled={loading}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {loading ? 'Updating...' : 'Mark as completed'}
+        </button>
+      </div>
+    );
+  }
 
-      <button
-        onClick={() => updateStatus('declined')}
-        disabled={loading}
-        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
-        Decline
-      </button>
-    </div>
-  );
+  return null;
 }
