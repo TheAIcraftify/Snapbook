@@ -61,7 +61,7 @@ export default function ReviewForm({
   }
 
   return (
-    <div className="mt-4 rounded-lg border p-4">
+    <div className="mt-4 rounded-lg border border-gray-200 p-4">
       <h3 className="text-lg font-semibold text-gray-900">
         Leave a review
       </h3>
@@ -77,9 +77,12 @@ export default function ReviewForm({
               key={star}
               type="button"
               onClick={() => setRating(star)}
-              className={`text-2xl ${
-                star <= rating ? 'text-yellow-500' : 'text-gray-300'
+              className={`text-3xl transition ${
+                star <= rating
+                  ? 'text-yellow-500'
+                  : 'text-gray-300'
               }`}
+              aria-label={`${star} star rating`}
             >
               ★
             </button>
@@ -87,7 +90,7 @@ export default function ReviewForm({
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-4">
         <label className="block text-sm font-medium text-gray-700">
           Review
         </label>
@@ -96,8 +99,8 @@ export default function ReviewForm({
           value={review}
           onChange={(e) => setReview(e.target.value)}
           placeholder="Write your review..."
-          rows={3}
-          className="mt-1 w-full rounded-lg border border-gray-300 p-3"
+          rows={4}
+          className="mt-1 w-full rounded-lg border border-gray-300 p-3 text-sm outline-none focus:border-blue-500"
         />
       </div>
 
@@ -105,5 +108,16 @@ export default function ReviewForm({
         type="button"
         onClick={submitReview}
         disabled={loading}
-        className="mt-3 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white"
-     
+        className="mt-4 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
+      >
+        {loading ? 'Submitting...' : 'Submit Review'}
+      </button>
+
+      {message && (
+        <p className="mt-3 text-sm text-gray-600">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}     
