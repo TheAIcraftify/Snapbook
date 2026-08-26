@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Card from '@/components/ui/Card';
+import ReviewForm from '@/components/ReviewForm';
 
 export default async function CustomerBookingsPage() {
   const profile = await getCurrentProfile();
@@ -14,7 +15,7 @@ export default async function CustomerBookingsPage() {
   const { data: bookings } = await supabase
     .from('bookings')
     .select(
-      'id, event_date, event_type, location, status, photographer_id, created_at'
+      'id, event_date, event_type, location, status, photographer_id'
     )
     .eq('customer_id', profile.id)
     .order('created_at', { ascending: false });
@@ -42,28 +43,12 @@ export default async function CustomerBookingsPage() {
               {b.event_date} · {b.location}
             </p>
 
-            {b.status === 'accepted' && (
-              <div className="mt-4 rounded-lg border border-gray-200 p-4">
-                <p className="font-medium text-gray-900">
-                  Booking completed?
-                </p>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  You can rate your photographer after the event.
-                </p>
-
-                <div className="mt-3 flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      className="text-2xl text-gray-400 hover:text-yellow-500"
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {b.status === 'accepted' && b.photographer_id && (
+              <ReviewForm
+                bookingId={b.id}
+                customerId={profile.id}
+                photographerId={b.photographer_id}
+              />
             )}
           </Card>
         ))}
