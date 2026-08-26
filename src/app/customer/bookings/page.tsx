@@ -20,6 +20,20 @@ export default async function CustomerBookingsPage() {
     .eq('customer_id', profile.id)
     .order('created_at', { ascending: false });
 
+  const bookingIds = (bookings || []).map((b) => b.id);
+
+  const { data: reviews } = bookingIds.length
+    ? await supabase
+        .from('reviews')
+        .select('booking_id')
+        .eq('customer_id', profile.id)
+        .in('booking_id', bookingIds)
+    : { data: [] };
+
+  const reviewedBookingIds = new Set(
+    (reviews || []).map((r) => r.booking_id)
+  );
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-bold text-gray-900">
@@ -43,12 +57,18 @@ export default async function CustomerBookingsPage() {
               {b.event_date} · {b.location}
             </p>
 
-            {b.status === 'accepted' && b.photographer_id && (
-              <ReviewForm
-                bookingId={b.id}
-                customerId={profile.id}
-                photographerId={b.photographer_id}
-              />
+            {b.status === 'completed' && b.photographer_id && (
+              reviewedBookingIds.has(b.id) ? (
+                <p className="mt-4 text-sm text-green-600">
+                  You have already reviewed this booking.
+                </p>
+              ) : (
+                <ReviewForm
+                  bookingId={b.id}
+                  customerId={profile.id}
+                  photographerId={b.photographer_id}
+                />
+              )
             )}
           </Card>
         ))}
