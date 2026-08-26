@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Prevent bookings for past dates
   const today = new Date().toISOString().split('T')[0];
 
   if (event_date < today) {
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Prevent double booking for the same photographer and date
   const { data: existingBooking, error: existingBookingError } =
     await supabase
       .from('bookings')
@@ -124,6 +126,7 @@ export async function GET(request: NextRequest) {
   const searchParams = new URL(request.url).searchParams;
   const photographerId = searchParams.get('photographer_id');
 
+  // Used by BookingForm to find unavailable dates
   if (photographerId) {
     const { data, error } = await supabase
       .from('bookings')
@@ -139,7 +142,9 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      bookedDates: (data || []).map((booking) => booking.event_date),
+      bookedDates: (data || []).map(
+        (booking) => booking.event_date
+      ),
     });
   }
 
@@ -149,6 +154,7 @@ export async function GET(request: NextRequest) {
     .eq('id', user.id)
     .single();
 
+  // Customer bookings
   if (profile?.role === 'customer') {
     const { data, error } = await supabase
       .from('bookings')
@@ -163,9 +169,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ bookings: data });
+    return NextResponse.json({
+      bookings: data || [],
+    });
   }
 
+  // Photographer bookings
   if (profile?.role === 'photographer') {
     const { data: photographer } = await supabase
       .from('photographers')
@@ -174,7 +183,9 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (!photographer) {
-      return NextResponse.json({ bookings: [] });
+      return NextResponse.json({
+        bookings: [],
+      });
     }
 
     const { data, error } = await supabase
@@ -190,7 +201,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ bookings: data });
+    return NextResponse.json({
+      bookings: data || [],
+    });
   }
 
   return NextResponse.json(
@@ -240,7 +253,56 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
+
   const { booking_id, status } = body;
 
   if (
-    !
+    !booking_id ||
+    !['accepted', 'declined', 'completed'].includes(status)
+  ) {
+    return NextResponse.json(
+      { error: 'Invalid booking ID or status.' },
+      { status: 400 }
+    );
+  }
+
+  // Accepted -> Completed
+  if (status === 'completed') {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ status: 'completed' })
+      .eq('id', booking_id)
+      .eq('photographer_id', photographer.id)
+      .eq('status', 'accepted')
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        {
+          error:
+            'Only an accepted booking can be marked as completed.',
+        },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({
+      booking: data,
+    });
+  }
+
+  // Pending -> Accepted / Declined
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status })
+    .eq('id', booking_id)
+    .eq('photographer_id', photographer.id)
+    .eq('status', 'pending
