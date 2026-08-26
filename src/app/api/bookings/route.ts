@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Prevent bookings for past dates
   const today = new Date().toISOString().split('T')[0];
 
   if (event_date < today) {
@@ -55,8 +54,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check whether this photographer already has a booking
-  // on the requested date.
   const { data: existingBooking, error: existingBookingError } =
     await supabase
       .from('bookings')
@@ -124,10 +121,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { searchParams } = new URL(request.url);
+  const searchParams = new URL(request.url).searchParams;
   const photographerId = searchParams.get('photographer_id');
 
-  // Return booked dates for the booking form
   if (photographerId) {
     const { data, error } = await supabase
       .from('bookings')
@@ -143,9 +139,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      bookedDates: (data || []).map(
-        (booking) => booking.event_date
-      ),
+      bookedDates: (data || []).map((booking) => booking.event_date),
     });
   }
 
@@ -165,4 +159,88 @@ export async function GET(request: NextRequest) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-  {
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ bookings: data });
+  }
+
+  if (profile?.role === 'photographer') {
+    const { data: photographer } = await supabase
+      .from('photographers')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!photographer) {
+      return NextResponse.json({ bookings: [] });
+    }
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('photographer_id', photographer.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ bookings: data });
+  }
+
+  return NextResponse.json(
+    { error: 'Unauthorized role.' },
+    { status: 403 }
+  );
+}
+
+export async function PATCH(request: NextRequest) {
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: 'You must be logged in.' },
+      { status: 401 }
+    );
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role !== 'photographer') {
+    return NextResponse.json(
+      { error: 'Only photographers can update bookings.' },
+      { status: 403 }
+    );
+  }
+
+  const { data: photographer } = await supabase
+    .from('photographers')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!photographer) {
+    return NextResponse.json(
+      { error: 'Photographer profile not found.' },
+      { status: 404 }
+    );
+  }
+
+  const body = await request.json();
+  const { booking_id, status } = body;
+
+  if (
+    !
