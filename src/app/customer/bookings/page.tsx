@@ -1,125 +1,64 @@
-'use client';
+import { createClient } from '@/lib/supabase/server';
+import { getCurrentProfile } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import Card from '@/components/ui/Card';
+import ReviewForm from '@/components/ReviewForm';
 
-import { useState } from 'react';
+export default async function CustomerBookingsPage() {
+  const profile = await getCurrentProfile();
 
-type Props = {
-  bookingId: string;
-  customerId: string;
-  photographerId: string;
-};
+  if (!profile) redirect('/login');
+  if (profile.role !== 'customer') redirect('/');
 
-export default function ReviewForm({
-  bookingId,
-  customerId,
-  photographerId,
-}: Props) {
-  const [rating, setRating] = useState(0);
-  const [review, setReview] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const supabase = createClient();
 
-  async function submitReview() {
-    setMessage('');
-
-    if (!rating) {
-      setMessage('Please select a rating.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          booking_id: bookingId,
-          customer_id: customerId,
-          photographer_id: photographerId,
-          rating,
-          review,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setMessage(result.error || 'Something went wrong.');
-        return;
-      }
-
-      setMessage('Review submitted successfully.');
-      setReview('');
-      setRating(0);
-    } catch {
-      setMessage('Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select(
+      'id, event_date, event_type, location, status, photographer_id, created_at'
+    )
+    .eq('customer_id', profile.id)
+    .order('created_at', { ascending: false });
 
   return (
-    <div className="mt-4 rounded-lg border border-gray-200 p-4">
-      <h3 className="text-lg font-semibold text-gray-900">
-        Leave a review
-      </h3>
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <h1 className="text-2xl font-bold text-gray-900">
+        My bookings
+      </h1>
 
-      <div className="mt-3">
-        <label className="block text-sm font-medium text-gray-700">
-          Rating
-        </label>
+      <div className="mt-6 flex flex-col gap-3">
+        {(bookings || []).map((b) => (
+          <Card key={b.id}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">
+                {b.event_type}
+              </h2>
 
-        <div className="mt-2 flex gap-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              type="button"
-              onClick={() => setRating(star)}
-              disabled={loading}
-              aria-label={`Rate ${star} out of 5`}
-              className={`text-3xl transition ${
-                star <= rating
-                  ? 'text-yellow-500'
-                  : 'text-gray-300'
-              }`}
-            >
-              ★
-            </button>
-          ))}
-        </div>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize text-gray-600">
+                {b.status}
+              </span>
+            </div>
+
+            <p className="mt-1 text-sm text-gray-500">
+              {b.event_date} · {b.location}
+            </p>
+
+            {b.status === 'accepted' && b.photographer_id && (
+              <ReviewForm
+                bookingId={b.id}
+                customerId={profile.id}
+                photographerId={b.photographer_id}
+              />
+            )}
+          </Card>
+        ))}
+
+        {(!bookings || bookings.length === 0) && (
+          <p className="text-gray-500">
+            You haven&apos;t requested any bookings yet.
+          </p>
+        )}
       </div>
-
-      <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-700">
-          Review
-        </label>
-
-        <textarea
-          value={review}
-          onChange={(e) => setReview(e.target.value)}
-          placeholder="Write your review..."
-          rows={4}
-          disabled={loading}
-          className="mt-1 w-full rounded-lg border border-gray-300 p-3 text-gray-900 outline-none focus:border-blue-500"
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={submitReview}
-        disabled={loading}
-        className="mt-3 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
-        {loading ? 'Submitting...' : 'Submit Review'}
-      </button>
-
-      {message && (
-        <p className="mt-3 text-sm text-gray-600">
-          {message}
-        </p>
-      )}
     </div>
   );
 }
