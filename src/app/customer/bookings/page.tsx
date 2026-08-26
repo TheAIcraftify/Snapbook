@@ -1,3 +1,4 @@
+import ReviewForm from '@/components/ReviewForm';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth';
 import { redirect } from 'next/navigation';
