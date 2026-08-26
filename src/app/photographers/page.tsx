@@ -7,7 +7,7 @@ export default async function PhotographersPage() {
 
   const { data: photographers } = await supabase
     .from('photographers')
-    .select('id, user_id, city, categories, price_range, rating, verification_status')
+    .select('id, user_id, city, categories, price_range, verification_status')
     .eq('verification_status', 'verified');
 
   const userIds = (photographers || []).map((p) => p.user_id);
@@ -17,6 +17,29 @@ export default async function PhotographersPage() {
     : { data: [] as Profile[] };
 
   const nameMap = new Map((profiles || []).map((p) => [p.id, p.full_name]));
+
+  const photographerIds = (photographers || []).map((p) => p.id);
+
+  const { data: reviews } = photographerIds.length
+    ? await supabase
+        .from('reviews')
+        .select('photographer_id, rating')
+        .in('photographer_id', photographerIds)
+    : { data: [] as { photographer_id: string; rating: number }[] };
+
+  const ratingMap = new Map<string, number>();
+  const groupedRatings = new Map<string, number[]>();
+
+  (reviews || []).forEach((r) => {
+    const existing = groupedRatings.get(r.photographer_id) || [];
+    existing.push(r.rating);
+    groupedRatings.set(r.photographer_id, existing);
+  });
+
+  groupedRatings.forEach((ratings, photographerId) => {
+    const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
+    ratingMap.set(photographerId, Math.round(avg * 10) / 10);
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -30,7 +53,7 @@ export default async function PhotographersPage() {
             city={p.city}
             categories={p.categories}
             priceRange={p.price_range}
-            rating={p.rating}
+            rating={ratingMap.get(p.id) || 0}
           />
         ))}
       </div>
