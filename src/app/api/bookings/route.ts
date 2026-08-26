@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Prevent double booking for the same photographer and date
+  // Check if photographer already has a pending or accepted
+  // booking on the requested date.
   const { data: existingBooking, error: existingBookingError } =
     await supabase
       .from('bookings')
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          'This photographer is already booked for this date. Please select another date.',
+          'This photographer is already booked for the selected date.',
       },
       { status: 409 }
     );
@@ -123,186 +124,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const searchParams = new URL(request.url).searchParams;
-  const photographerId = searchParams.get('photographer_id');
-
-  // Used by BookingForm to find unavailable dates
-  if (photographerId) {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('event_date')
-      .eq('photographer_id', photographerId)
-      .in('status', ['pending', 'accepted']);
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      bookedDates: (data || []).map(
-        (booking) => booking.event_date
-      ),
-    });
-  }
-
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single();
-
-  // Customer bookings
-  if (profile?.role === 'customer') {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('customer_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      bookings: data || [],
-    });
-  }
-
-  // Photographer bookings
-  if (profile?.role === 'photographer') {
-    const { data: photographer } = await supabase
-      .from('photographers')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (!photographer) {
-      return NextResponse.json({
-        bookings: [],
-      });
-    }
-
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('photographer_id', photographer.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      bookings: data || [],
-    });
-  }
-
-  return NextResponse.json(
-    { error: 'Unauthorized role.' },
-    { status: 403 }
-  );
-}
-
-export async function PATCH(request: NextRequest) {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: 'You must be logged in.' },
-      { status: 401 }
-    );
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'photographer') {
-    return NextResponse.json(
-      { error: 'Only photographers can update bookings.' },
-      { status: 403 }
-    );
-  }
-
-  const { data: photographer } = await supabase
-    .from('photographers')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (!photographer) {
-    return NextResponse.json(
-      { error: 'Photographer profile not found.' },
-      { status: 404 }
-    );
-  }
-
-  const body = await request.json();
-
-  const { booking_id, status } = body;
 
   if (
-    !booking_id ||
-    !['accepted', 'declined', 'completed'].includes(status)
-  ) {
-    return NextResponse.json(
-      { error: 'Invalid booking ID or status.' },
-      { status: 400 }
-    );
-  }
-
-  // Accepted -> Completed
-  if (status === 'completed') {
-    const { data, error } = await supabase
-      .from('bookings')
-      .update({ status: 'completed' })
-      .eq('id', booking_id)
-      .eq('photographer_id', photographer.id)
-      .eq('status', 'accepted')
-      .select()
-      .maybeSingle();
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    if (!data) {
-      return NextResponse.json(
-        {
-          error:
-            'Only an accepted booking can be marked as completed.',
-        },
-        { status: 409 }
-      );
-    }
-
-    return NextResponse.json({
-      booking: data,
-    });
-  }
-
-  // Pending -> Accepted / Declined
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({ status })
-    .eq('id', booking_id)
-    .eq('photographer_id', photographer.id)
-    .eq('status', 'pending
