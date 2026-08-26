@@ -50,4 +50,6 @@ export async function POST(request: NextRequest) {
   if (event_date < today) {
     return NextResponse.json(
       { error: 'You cannot request a booking for a past date.' },
-      { status: 400
+      { status: 400 }
+    );
+  }
