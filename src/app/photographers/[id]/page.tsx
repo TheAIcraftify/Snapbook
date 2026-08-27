@@ -4,6 +4,8 @@ import BookingForm from "@/components/bookings/BookingForm";
 import Card from '@/components/ui/Card';
 import { notFound } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export default async function PhotographerDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
   const currentProfile = await getCurrentProfile();
