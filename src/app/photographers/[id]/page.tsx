@@ -10,7 +10,7 @@ export default async function PhotographerDetailPage({ params }: { params: { id:
 
   const { data: photographer } = await supabase
     .from('photographers')
-    .select('id, user_id, bio, categories, city, price_range, rating, portfolio_urls, verification_status')
+    .select('id, user_id, bio, categories, city, price_range, portfolio_urls, verification_status')
     .eq('id', params.id)
     .single();
 
@@ -24,11 +24,26 @@ export default async function PhotographerDetailPage({ params }: { params: { id:
     .eq('id', photographer.user_id)
     .single();
 
+  const { data: reviews } = await supabase
+    .from('reviews')
+    .select('rating')
+    .eq('photographer_id', photographer.id);
+
+  const reviewCount = (reviews || []).length;
+  const averageRating = reviewCount > 0
+    ? Math.round(
+        ((reviews || []).reduce((sum, r) => sum + r.rating, 0) / reviewCount) * 10
+      ) / 10
+    : 0;
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-bold text-gray-900">{profile?.full_name}</h1>
       <p className="mt-1 text-gray-500">
-        {photographer.city} · {photographer.price_range} · ★ {photographer.rating.toFixed(1)}
+        {photographer.city} · {photographer.price_range} · ★ {averageRating.toFixed(1)}
+        {reviewCount > 0 && (
+          <span className="text-sm text-gray-400"> ({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
+        )}
       </p>
       <p className="mt-4 text-gray-700">{photographer.bio}</p>
       <p className="mt-2 text-sm text-gray-600">{photographer.categories.join(', ')}</p>
