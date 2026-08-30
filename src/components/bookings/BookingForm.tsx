@@ -21,22 +21,37 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [unavailableDates, setUnavailableDates] = useState<string[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    async function loadBookedDates() {
+    async function loadBookingAvailability() {
       try {
-        const res = await fetch(
-          `/api/bookings?photographer_id=${photographerId}`
-        );
+        const [bookingsRes, availabilityRes] = await Promise.all([
+          fetch(
+            `/api/bookings?photographer_id=${photographerId}`
+          ),
+          fetch(
+            `/api/photographer/availability?photographer_id=${photographerId}`
+          ),
+        ]);
 
-        if (!res.ok) {
+        if (!bookingsRes.ok) {
           throw new Error('Failed to load booked dates');
         }
 
-        const data = await res.json();
-        setBookedDates(data.bookedDates || []);
+        if (!availabilityRes.ok) {
+          throw new Error('Failed to load photographer availability');
+        }
+
+        const bookingsData = await bookingsRes.json();
+        const availabilityData = await availabilityRes.json();
+
+        setBookedDates(bookingsData.bookedDates || []);
+        setUnavailableDates(
+          availabilityData.unavailableDates || []
+        );
       } catch {
         setError('Unable to load booking availability.');
       } finally {
@@ -44,7 +59,7 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
       }
     }
 
-    loadBookedDates();
+    loadBookingAvailability();
   }, [photographerId]);
 
   function handleDateChange(value: string) {
@@ -58,6 +73,14 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
       return;
     }
 
+    if (unavailableDates.includes(value)) {
+      setEventDate('');
+      setError(
+        'This photographer is unavailable on the selected date. Please select another date.'
+      );
+      return;
+    }
+
     setEventDate(value);
   }
 
@@ -67,6 +90,13 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
     if (bookedDates.includes(eventDate)) {
       setError(
         'This date is already booked. Please select another date.'
+      );
+      return;
+    }
+
+    if (unavailableDates.includes(eventDate)) {
+      setError(
+        'This photographer is unavailable on the selected date. Please select another date.'
       );
       return;
     }
@@ -136,7 +166,7 @@ export default function BookingForm({ photographerId }: BookingFormProps) {
 
         {!loadingDates && (
           <p className="mt-1 text-xs text-gray-500">
-            Already booked dates cannot be selected.
+            Already booked or unavailable dates cannot be selected.
           </p>
         )}
       </div>
