@@ -54,6 +54,56 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Make sure the photographer exists and get the
+  // corresponding profiles.id used by photographer_availability.
+  const { data: photographer, error: photographerError } =
+    await supabase
+      .from('photographers')
+      .select('id, user_id')
+      .eq('id', photographer_id)
+      .maybeSingle();
+
+  if (photographerError) {
+    return NextResponse.json(
+      { error: photographerError.message },
+      { status: 500 }
+    );
+  }
+
+  if (!photographer) {
+    return NextResponse.json(
+      { error: 'Photographer not found.' },
+      { status: 404 }
+    );
+  }
+
+  // Check photographer availability before creating the booking.
+  // photographer_availability.photographer_id references profiles.id,
+  // while bookings.photographer_id references photographers.id.
+  const { data: unavailable, error: availabilityError } =
+    await supabase.rpc('is_photographer_date_unavailable', {
+      p_photographer_id: photographer.user_id,
+      p_event_date: event_date,
+    });
+
+  if (availabilityError) {
+    return NextResponse.json(
+      { error: availabilityError.message },
+      { status: 500 }
+    );
+  }
+
+  if (unavailable === true) {
+    return NextResponse.json(
+      {
+        error:
+          'This photographer is unavailable on the selected date.',
+      },
+      { status: 409 }
+    );
+  }
+
+  // Existing booking conflict protection.
   const { data: existingBooking, error: existingBookingError } =
     await supabase
       .from('bookings')
@@ -279,4 +329,4 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ booking: data });
-}
+         }
