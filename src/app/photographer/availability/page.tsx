@@ -184,22 +184,21 @@ export default function PhotographerAvailabilityPage() {
                 {saving ? 'Saving...' : 'Mark available'}
               </Button>
 
-              <button
+              <Button
                 type="button"
                 disabled={saving}
                 onClick={() =>
                   updateAvailability(selectedDate, false)
                 }
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Mark unavailable
-              </button>
+              </Button>
             </div>
           )}
 
-          {message && (
-            <p className="text-sm text-green-600">
-              {message}
+          {loading && (
+            <p className="text-sm text-gray-500">
+              Loading availability...
             </p>
           )}
 
@@ -208,18 +207,62 @@ export default function PhotographerAvailabilityPage() {
               {error}
             </p>
           )}
+
+          {message && (
+            <p className="text-sm text-green-600">
+              {message}
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Saved availability
-        </h2>
+      {!loading && availability.length > 0 && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Saved dates
+          </h2>
 
-        {loading ? (
-          <p className="mt-3 text-sm text-gray-500">
-            Loading availability...
+          <div className="mt-4 flex flex-col gap-3">
+            {availability
+              .slice()
+              .sort((a, b) =>
+                a.available_date.localeCompare(
+                  b.available_date
+                )
+              )
+              .map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3"
+                >
+                  <span className="text-sm text-gray-700">
+                    {item.available_date}
+                  </span>
+
+                  <span
+                    className={`text-sm font-medium ${
+                      item.is_available
+                        ? 'text-green-600'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    {item.is_available
+                      ? 'Available'
+                      : 'Unavailable'}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && availability.length === 0 && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-sm text-gray-500">
+            No availability dates added yet.
           </p>
-        ) : availability.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">
-            No availability dates added
+        </div>
+      )}
+    </main>
+  );
+}
