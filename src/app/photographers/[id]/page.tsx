@@ -39,21 +39,18 @@ export default async function PhotographerDetailPage({
     .eq('id', photographer.user_id)
     .single();
 
-  // Public reviews:
-  // Only rating is used here.
-  // No customer personal information is exposed.
   const { data: reviews } = await supabase
     .from('reviews')
     .select('rating')
     .eq('photographer_id', photographer.id);
 
-  const reviewCount = (reviews || []).length;
+  const reviewCount = reviews?.length ?? 0;
 
   const averageRating =
     reviewCount > 0
       ? Math.round(
-          ((reviews || []).reduce(
-            (sum, review) => sum + review.rating,
+          ((reviews ?? []).reduce(
+            (sum, review) => sum + Number(review.rating),
             0
           ) /
             reviewCount) *
@@ -61,14 +58,13 @@ export default async function PhotographerDetailPage({
         ) / 10
       : 0;
 
-  // New portfolio system
   const { data: portfolioItems } = await supabase
     .from('portfolio_items')
     .select('id, media_type, media_url, created_at')
     .eq('photographer_id', photographer.id)
     .order('created_at', { ascending: false });
 
-  const portfolio = (portfolioItems || []) as PortfolioItem[];
+  const portfolio = (portfolioItems ?? []) as PortfolioItem[];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -83,15 +79,14 @@ export default async function PhotographerDetailPage({
         {reviewCount > 0 && (
           <span className="text-sm text-gray-400">
             {' '}
-            ({reviewCount} review
-            {reviewCount !== 1 ? 's' : ''})
+            ({reviewCount} review{reviewCount !== 1 ? 's' : ''})
           </span>
         )}
       </p>
 
-      <p className="mt-4 text-gray-700">
-        {photographer.bio}
-      </p>
+      {photographer.bio && (
+        <p className="mt-4 text-gray-700">{photographer.bio}</p>
+      )}
 
       {photographer.categories?.length > 0 && (
         <p className="mt-2 text-sm text-gray-600">
@@ -99,7 +94,6 @@ export default async function PhotographerDetailPage({
         </p>
       )}
 
-      {/* PUBLIC PORTFOLIO */}
       {portfolio.length > 0 && (
         <section className="mt-6">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">
@@ -127,3 +121,61 @@ export default async function PhotographerDetailPage({
                     preload="metadata"
                     className="aspect-video w-full bg-black object-contain"
                   />
+                )}
+
+                <div className="px-3 py-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    {item.media_type === 'bts'
+                      ? 'Behind the Scenes'
+                      : item.media_type === 'video'
+                        ? 'Video'
+                        : 'Photo'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <Card className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Reviews
+        </h2>
+
+        {reviewCount === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">
+            No reviews yet.
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-gray-600">
+            ★ {averageRating.toFixed(1)} based on {reviewCount}{' '}
+            review{reviewCount !== 1 ? 's' : ''}.
+          </p>
+        )}
+      </Card>
+
+      <Card className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Request a booking
+        </h2>
+
+        {currentProfile ? (
+          currentProfile.role === 'customer' ? (
+            <div className="mt-4">
+              <BookingForm photographerId={photographer.id} />
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500">
+              Only customers can request bookings.
+            </p>
+          )
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">
+            Please log in as a customer to request a booking.
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
