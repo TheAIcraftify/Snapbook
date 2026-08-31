@@ -16,7 +16,7 @@ export default function PortfolioManager() {
   const [items, setItems] = useState<PortfolioItem[]>([]);
   const [mediaType, setMediaType] =
     useState<PortfolioItem["media_type"]>("photo");
-  const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +70,8 @@ export default function PortfolioManager() {
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!url.trim()) {
-      setError("Please enter a media URL.");
+    if (!file) {
+      setError("Please select a photo or video.");
       return;
     }
 
@@ -88,39 +88,74 @@ export default function PortfolioManager() {
       return;
     }
 
-    const { data: photographer } = await supabase
-      .from("photographers")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
+    const { data: photographer, error: photographerError } =
+      await supabase
+        .from("photographers")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
 
-    if (!photographer) {
+    if (photographerError || !photographer) {
       setError("Photographer profile not found.");
       setSaving(false);
       return;
     }
+
+    const extension = file.name.split(".").pop() || "file";
+    const fileName = `${user.id}/${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("portfolio")
+      .upload(fileName, file);
+
+    if (uploadError) {
+      setError(uploadError.message);
+      setSaving(false);
+      return;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from("portfolio")
+      .getPublicUrl(fileName);
 
     const { error: insertError } = await supabase
       .from("portfolio_items")
       .insert({
         photographer_id: photographer.id,
         media_type: mediaType,
-        url: url.trim(),
+        url: publicUrl,
       });
 
     if (insertError) {
+      await supabase.storage.from("portfolio").remove([fileName]);
       setError(insertError.message);
       setSaving(false);
       return;
     }
 
-    setUrl("");
+    setFile(null);
     setSaving(false);
+
     await loadPortfolio();
   }
 
-  async function deleteItem(id: string) {
+  async function deleteItem(id: string, url: string) {
     if (!confirm("Delete this portfolio item?")) return;
+
+    const { data: userData } = await supabase.auth.getUser();
+
+    if (!userData.user) {
+      setError("Please log in again.");
+      return;
+    }
+
+    const filePath = url.split("/portfolio/")[1];
+
+    if (filePath) {
+      await supabase.storage.from("portfolio").remove([filePath]);
+    }
 
     const { error: deleteError } = await supabase
       .from("portfolio_items")
@@ -132,7 +167,9 @@ export default function PortfolioManager() {
       return;
     }
 
-    setItems((current) => current.filter((item) => item.id !== id));
+    setItems((current) =>
+      current.filter((item) => item.id !== id)
+    );
   }
 
   return (
@@ -162,10 +199,11 @@ export default function PortfolioManager() {
           </select>
 
           <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste image or video URL"
+            type="file"
+            accept={mediaType === "photo" ? "image/*" : "image/*,video/*"}
+            onChange={(e) =>
+              setFile(e.target.files?.[0] || null)
+            }
             className="w-full rounded-md border border-gray-300 px-3 py-2"
             required
           />
@@ -175,7 +213,7 @@ export default function PortfolioManager() {
             disabled={saving}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {saving ? "Adding..." : "Add to portfolio"}
+            {saving ? "Uploading..." : "Add to portfolio"}
           </button>
         </form>
 
@@ -228,7 +266,9 @@ export default function PortfolioManager() {
 
                   <button
                     type="button"
-                    onClick={() => deleteItem(item.id)}
+                    onClick={() =>
+                      deleteItem(item.id, item.url)
+                    }
                     className="text-sm text-red-600"
                   >
                     Delete
