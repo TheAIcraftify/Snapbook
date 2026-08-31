@@ -3,6 +3,7 @@ import { getCurrentProfile } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import ReviewForm from '@/components/ReviewForm';
+import TipForm from '@/components/TipForm';
 
 export default async function CustomerBookingsPage() {
   const profile = await getCurrentProfile();
@@ -57,17 +58,24 @@ export default async function CustomerBookingsPage() {
               {b.event_date} · {b.location}
             </p>
 
-            {b.status === 'accepted' && b.photographer_id && (
-              reviewedBookingIds.has(b.id) ? (
-                <p className="mt-4 text-sm text-green-600">
-                  You have already reviewed this booking.
-                </p>
-              ) : (
-                <ReviewForm
+            {b.status === 'completed' && b.photographer_id && (
+              <>
+                {reviewedBookingIds.has(b.id) ? (
+                  <p className="mt-4 text-sm text-green-600">
+                    You have already reviewed this booking.
+                  </p>
+                ) : (
+                  <ReviewForm
+                    bookingId={b.id}
+                    photographerId={b.photographer_id}
+                  />
+                )}
+
+                <TipForm
                   bookingId={b.id}
                   photographerId={b.photographer_id}
                 />
-              )
+              </>
             )}
           </Card>
         ))}
