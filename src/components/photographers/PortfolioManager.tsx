@@ -17,7 +17,6 @@ export default function PortfolioManager() {
   const [mediaType, setMediaType] =
     useState<PortfolioItem["media_type"]>("photo");
   const [file, setFile] = useState<File | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,11 +88,7 @@ export default function PortfolioManager() {
     try {
       const photographer = await getPhotographer();
 
-      const fileExt = file.name.split(".").pop()?.toLowerCase() || "file";
-      const safeName = file.name
-        .replace(/[^a-zA-Z0-9._-]/g, "-")
-        .replace(/\s+/g, "-");
-
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
       const filePath = `${photographer.id}/${crypto.randomUUID()}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -127,20 +122,18 @@ export default function PortfolioManager() {
         });
 
       if (insertError) {
-        // Remove uploaded file if database insert fails.
         await supabase.storage.from("portfolio").remove([filePath]);
-
         throw new Error(insertError.message);
       }
 
       setFile(null);
 
-      const fileInput = document.getElementById(
+      const input = document.getElementById(
         "portfolio-file"
       ) as HTMLInputElement | null;
 
-      if (fileInput) {
-        fileInput.value = "";
+      if (input) {
+        input.value = "";
       }
 
       await loadPortfolio();
@@ -209,11 +202,7 @@ export default function PortfolioManager() {
           <input
             id="portfolio-file"
             type="file"
-            accept={
-              mediaType === "photo"
-                ? "image/*"
-                : "video/*"
-            }
+            accept={mediaType === "photo" ? "image/*" : "video/*"}
             onChange={(e) => {
               setFile(e.target.files?.[0] || null);
               setError(null);
@@ -246,4 +235,48 @@ export default function PortfolioManager() {
             No portfolio items added yet.
           </p>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="overflow-hidden rounded-lg border border-gray-200"
+              >
+                {item.media_type === "photo" ? (
+                  <img
+                    src={item.media_url}
+                    alt="Portfolio work"
+                    className="h-52 w-full object-cover"
+                  />
+                ) : (
+                  <video
+                    src={item.media_url}
+                    controls
+                    className="h-52 w-full bg-black object-cover"
+                  />
+                )}
+
+                <div className="flex items-center justify-between p-3">
+                  <span className="text-sm font-medium text-gray-700">
+                    {item.media_type === "bts"
+                      ? "Behind the Scenes"
+                      : item.media_type === "video"
+                      ? "Video"
+                      : "Photo"}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteItem(item)}
+                    className="text-sm text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
