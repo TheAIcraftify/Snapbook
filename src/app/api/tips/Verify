@@ -1,0 +1,141 @@
+import { createClient } from '@/lib/supabase/server';
+import { getCurrentProfile } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+import crypto from 'crypto';
+
+export async function POST(request: Request) {
+  try {
+    const profile = await getCurrentProfile();
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'You must be logged in.' },
+        { status: 401 }
+      );
+    }
+
+    if (profile.role !== 'customer') {
+      return NextResponse.json(
+        { error: 'Only customers can verify tips.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+
+    const {
+      tip_id,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    } = body;
+
+    if (
+      !tip_id ||
+      !razorpay_order_id ||
+      !razorpay_payment_id ||
+      !razorpay_signature
+    ) {
+      return NextResponse.json(
+        { error: 'Missing payment verification details.' },
+        { status: 400 }
+      );
+    }
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keySecret) {
+      return NextResponse.json(
+        { error: 'Razorpay is not configured.' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient();
+
+    const { data: tip, error: tipError } = await supabase
+      .from('tips')
+      .select(
+        'id, booking_id, customer_id, photographer_id, amount, status, razorpay_order_id'
+      )
+      .eq('id', tip_id)
+      .eq('customer_id', profile.id)
+      .maybeSingle();
+
+    if (tipError) {
+      return NextResponse.json(
+        { error: tipError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!tip) {
+      return NextResponse.json(
+        { error: 'Tip not found.' },
+        { status: 404 }
+      );
+    }
+
+    if (tip.status === 'paid') {
+      return NextResponse.json({
+        success: true,
+        message: 'Tip has already been paid.',
+      });
+    }
+
+    if (tip.razorpay_order_id !== razorpay_order_id) {
+      return NextResponse.json(
+        { error: 'Invalid Razorpay order.' },
+        { status: 400 }
+      );
+    }
+
+    const generatedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(
+        `${razorpay_order_id}|${razorpay_payment_id}`
+      )
+      .digest('hex');
+
+    if (generatedSignature !== razorpay_signature) {
+      return NextResponse.json(
+        { error: 'Payment signature verification failed.' },
+        { status: 400 }
+      );
+    }
+
+    const { data: updatedTip, error: updateError } =
+      await supabase
+        .from('tips')
+        .update({
+          status: 'paid',
+          razorpay_payment_id,
+          paid_at: new Date().toISOString(),
+        })
+        .eq('id', tip.id)
+        .eq('customer_id', profile.id)
+        .eq('status', 'pending')
+        .select(
+          'id, booking_id, photographer_id, amount, status, paid_at'
+        )
+        .single();
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      tip: updatedTip,
+      message: 'Tip payment verified successfully.',
+    });
+  } catch {
+    return NextResponse.json(
+      { error: 'Unable to verify payment.' },
+      { status: 500 }
+    );
+  }
+}
