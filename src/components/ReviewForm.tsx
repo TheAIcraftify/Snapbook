@@ -4,13 +4,11 @@ import { useState } from 'react';
 
 type Props = {
   bookingId: string;
-  customerId: string;
   photographerId: string;
 };
 
 export default function ReviewForm({
   bookingId,
-  customerId,
   photographerId,
 }: Props) {
   const [rating, setRating] = useState(0);
@@ -36,7 +34,6 @@ export default function ReviewForm({
         },
         body: JSON.stringify({
           booking_id: bookingId,
-          customer_id: customerId,
           photographer_id: photographerId,
           rating,
           review,
@@ -122,4 +119,4 @@ export default function ReviewForm({
       )}
     </div>
   );
-        }
+}
