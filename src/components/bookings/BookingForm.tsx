@@ -31,9 +31,7 @@ export default function BookingForm({
     async function loadBookingAvailability() {
       try {
         const [bookingsRes, availabilityRes] = await Promise.all([
-          fetch(
-            `/api/bookings?photographer_id=${photographerId}`
-          ),
+          fetch(`/api/bookings?photographer_id=${photographerId}`),
           fetch(
             `/api/photographer/availability?photographer_id=${photographerId}`
           ),
@@ -44,9 +42,7 @@ export default function BookingForm({
         }
 
         if (!availabilityRes.ok) {
-          throw new Error(
-            'Failed to load photographer availability'
-          );
+          throw new Error('Failed to load photographer availability');
         }
 
         const bookingsData = await bookingsRes.json();
@@ -143,4 +139,78 @@ export default function BookingForm({
 
   if (success) {
     return (
-      <p className="rounded-lg bg-green-50 p-4 text
+      <p className="rounded-lg bg-green-50 p-4 text-green-700">
+        Booking request sent. The photographer will respond soon.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div>
+        <Input
+          label="Event date"
+          type="date"
+          value={eventDate}
+          min={today}
+          onChange={(e) => handleDateChange(e.target.value)}
+          required
+          disabled={loadingDates}
+        />
+
+        {loadingDates && (
+          <p className="mt-1 text-xs text-gray-500">
+            Checking availability...
+          </p>
+        )}
+
+        {!loadingDates && (
+          <p className="mt-1 text-xs text-gray-500">
+            Already booked or unavailable dates cannot be selected.
+          </p>
+        )}
+      </div>
+
+      <Input
+        label="Event type"
+        placeholder="Wedding, portrait, event..."
+        value={eventType}
+        onChange={(e) => setEventType(e.target.value)}
+        required
+      />
+
+      <Input
+        label="Location"
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+        required
+      />
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700">
+          Message
+        </label>
+
+        <textarea
+          className="rounded-lg border border-gray-300 px-3 py-2 focus:border-brand-500 focus:outline-none"
+          rows={3}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
+
+      <Button
+        type="submit"
+        disabled={loading || loadingDates}
+      >
+        {loading ? 'Sending...' : 'Request booking'}
+      </Button>
+    </form>
+  );
+}
