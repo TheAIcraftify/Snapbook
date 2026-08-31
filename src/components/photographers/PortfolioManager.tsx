@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 type PortfolioItem = {
   id: string;
   media_type: "photo" | "video" | "bts";
-  url: string;
+  media_url: string;
   created_at?: string;
 };
 
@@ -17,50 +17,58 @@ export default function PortfolioManager() {
   const [mediaType, setMediaType] =
     useState<PortfolioItem["media_type"]>("photo");
   const [file, setFile] = useState<File | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadPortfolio() {
-    setLoading(true);
-    setError(null);
-
+  async function getPhotographer() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setError("Please log in again.");
-      setLoading(false);
-      return;
+      throw new Error("Please log in again.");
     }
 
-    const { data: photographer, error: photographerError } =
-      await supabase
-        .from("photographers")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
+    const { data: photographer, error } = await supabase
+      .from("photographers")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
 
-    if (photographerError || !photographer) {
-      setError("Photographer profile not found.");
-      setLoading(false);
-      return;
+    if (error || !photographer) {
+      throw new Error("Photographer profile not found.");
     }
 
-    const { data, error: portfolioError } = await supabase
-      .from("portfolio_items")
-      .select("id, media_type, url, created_at")
-      .eq("photographer_id", photographer.id)
-      .order("created_at", { ascending: false });
+    return photographer;
+  }
 
-    if (portfolioError) {
-      setError(portfolioError.message);
-    } else {
+  async function loadPortfolio() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const photographer = await getPhotographer();
+
+      const { data, error: portfolioError } = await supabase
+        .from("portfolio_items")
+        .select("id, media_type, media_url, created_at")
+        .eq("photographer_id", photographer.id)
+        .order("created_at", { ascending: false });
+
+      if (portfolioError) {
+        throw new Error(portfolioError.message);
+      }
+
       setItems((data || []) as PortfolioItem[]);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to load portfolio."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -71,105 +79,105 @@ export default function PortfolioManager() {
     e.preventDefault();
 
     if (!file) {
-      setError("Please select a photo or video.");
+      setError("Please choose a photo or video.");
       return;
     }
 
     setSaving(true);
     setError(null);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const photographer = await getPhotographer();
 
-    if (!user) {
-      setError("Please log in again.");
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "file";
+      const safeName = file.name
+        .replace(/[^a-zA-Z0-9._-]/g, "-")
+        .replace(/\s+/g, "-");
+
+      const filePath = `${photographer.id}/${crypto.randomUUID()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("portfolio")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("portfolio")
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      if (!publicUrl) {
+        throw new Error("Could not create portfolio file URL.");
+      }
+
+      const { error: insertError } = await supabase
+        .from("portfolio_items")
+        .insert({
+          photographer_id: photographer.id,
+          media_type: mediaType,
+          media_url: publicUrl,
+        });
+
+      if (insertError) {
+        // Remove uploaded file if database insert fails.
+        await supabase.storage.from("portfolio").remove([filePath]);
+
+        throw new Error(insertError.message);
+      }
+
+      setFile(null);
+
+      const fileInput = document.getElementById(
+        "portfolio-file"
+      ) as HTMLInputElement | null;
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
+      await loadPortfolio();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to add portfolio item."
+      );
+    } finally {
       setSaving(false);
-      return;
     }
-
-    const { data: photographer, error: photographerError } =
-      await supabase
-        .from("photographers")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-    if (photographerError || !photographer) {
-      setError("Photographer profile not found.");
-      setSaving(false);
-      return;
-    }
-
-    const extension = file.name.split(".").pop() || "file";
-    const fileName = `${user.id}/${crypto.randomUUID()}.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("portfolio")
-      .upload(fileName, file);
-
-    if (uploadError) {
-      setError(uploadError.message);
-      setSaving(false);
-      return;
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage
-      .from("portfolio")
-      .getPublicUrl(fileName);
-
-    const { error: insertError } = await supabase
-      .from("portfolio_items")
-      .insert({
-        photographer_id: photographer.id,
-        media_type: mediaType,
-        url: publicUrl,
-      });
-
-    if (insertError) {
-      await supabase.storage.from("portfolio").remove([fileName]);
-      setError(insertError.message);
-      setSaving(false);
-      return;
-    }
-
-    setFile(null);
-    setSaving(false);
-
-    await loadPortfolio();
   }
 
-  async function deleteItem(id: string, url: string) {
-    if (!confirm("Delete this portfolio item?")) return;
-
-    const { data: userData } = await supabase.auth.getUser();
-
-    if (!userData.user) {
-      setError("Please log in again.");
+  async function deleteItem(item: PortfolioItem) {
+    if (!confirm("Delete this portfolio item?")) {
       return;
     }
 
-    const filePath = url.split("/portfolio/")[1];
+    setError(null);
 
-    if (filePath) {
-      await supabase.storage.from("portfolio").remove([filePath]);
+    try {
+      const { error: deleteError } = await supabase
+        .from("portfolio_items")
+        .delete()
+        .eq("id", item.id);
+
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
+
+      setItems((current) =>
+        current.filter((portfolioItem) => portfolioItem.id !== item.id)
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to delete portfolio item."
+      );
     }
-
-    const { error: deleteError } = await supabase
-      .from("portfolio_items")
-      .delete()
-      .eq("id", id);
-
-    if (deleteError) {
-      setError(deleteError.message);
-      return;
-    }
-
-    setItems((current) =>
-      current.filter((item) => item.id !== id)
-    );
   }
 
   return (
@@ -199,11 +207,17 @@ export default function PortfolioManager() {
           </select>
 
           <input
+            id="portfolio-file"
             type="file"
-            accept={mediaType === "photo" ? "image/*" : "image/*,video/*"}
-            onChange={(e) =>
-              setFile(e.target.files?.[0] || null)
+            accept={
+              mediaType === "photo"
+                ? "image/*"
+                : "video/*"
             }
+            onChange={(e) => {
+              setFile(e.target.files?.[0] || null);
+              setError(null);
+            }}
             className="w-full rounded-md border border-gray-300 px-3 py-2"
             required
           />
@@ -232,53 +246,4 @@ export default function PortfolioManager() {
             No portfolio items added yet.
           </p>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="overflow-hidden rounded-lg border border-gray-200"
-              >
-                {item.media_type === "photo" ? (
-                  <img
-                    src={item.url}
-                    alt="Portfolio work"
-                    className="h-52 w-full object-cover"
-                  />
-                ) : (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex h-52 items-center justify-center bg-gray-100 text-sm font-medium text-blue-600"
-                  >
-                    {item.media_type === "video"
-                      ? "🎥 Open Video"
-                      : "🎬 Open Behind the Scenes"}
-                  </a>
-                )}
-
-                <div className="flex items-center justify-between p-3">
-                  <span className="text-sm font-medium capitalize text-gray-700">
-                    {item.media_type === "bts"
-                      ? "Behind the Scenes"
-                      : item.media_type}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      deleteItem(item.id, item.url)
-                    }
-                    className="text-sm text-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
+          <div className="mt-6 grid gap-4 sm:grid-cols-2
