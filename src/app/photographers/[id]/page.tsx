@@ -10,7 +10,7 @@ type PortfolioItem = {
   id: string;
   media_type: 'photo' | 'video' | 'bts';
   media_url: string;
-  created_at?: string;
+  created_at: string;
 };
 
 export default async function PhotographerDetailPage({
@@ -39,32 +39,33 @@ export default async function PhotographerDetailPage({
     .eq('id', photographer.user_id)
     .single();
 
+  // Public-safe reviews:
+  // customer_id and booking_id are NOT exposed.
   const { data: reviews } = await supabase
-    .from('reviews')
-    .select('rating')
-    .eq('photographer_id', photographer.id);
+    .from('public_reviews')
+    .select('rating, review, created_at')
+    .eq('photographer_id', photographer.id)
+    .order('created_at', { ascending: false });
 
-  const reviewCount = reviews?.length ?? 0;
+  const reviewCount = (reviews || []).length;
 
   const averageRating =
     reviewCount > 0
       ? Math.round(
-          ((reviews ?? []).reduce(
-            (sum, review) => sum + Number(review.rating),
-            0
-          ) /
+          ((reviews || []).reduce((sum, r) => sum + r.rating, 0) /
             reviewCount) *
             10
         ) / 10
       : 0;
 
+  // Portfolio
   const { data: portfolioItems } = await supabase
     .from('portfolio_items')
     .select('id, media_type, media_url, created_at')
     .eq('photographer_id', photographer.id)
     .order('created_at', { ascending: false });
 
-  const portfolio = (portfolioItems ?? []) as PortfolioItem[];
+  const portfolio = (portfolioItems || []) as PortfolioItem[];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -84,77 +85,108 @@ export default async function PhotographerDetailPage({
         )}
       </p>
 
-      {photographer.bio && (
-        <p className="mt-4 text-gray-700">{photographer.bio}</p>
-      )}
+      <p className="mt-4 text-gray-700">{photographer.bio}</p>
 
-      {photographer.categories?.length > 0 && (
-        <p className="mt-2 text-sm text-gray-600">
-          {photographer.categories.join(', ')}
-        </p>
-      )}
+      <p className="mt-2 text-sm text-gray-600">
+        {photographer.categories?.join(', ')}
+      </p>
 
+      {/* Portfolio */}
       {portfolio.length > 0 && (
-        <section className="mt-6">
-          <h2 className="mb-3 text-lg font-semibold text-gray-900">
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-gray-900">
             Portfolio
           </h2>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {portfolio.map((item) => (
               <div
                 key={item.id}
                 className="overflow-hidden rounded-lg border border-gray-200 bg-white"
               >
-                {item.media_type === 'photo' ? (
+                {item.media_type === 'photo' && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={item.media_url}
                     alt="Portfolio work"
                     className="aspect-square w-full object-cover"
                   />
-                ) : (
+                )}
+
+                {item.media_type === 'video' && (
                   <video
                     src={item.media_url}
                     controls
-                    playsInline
-                    preload="metadata"
-                    className="aspect-video w-full bg-black object-contain"
+                    className="aspect-square w-full object-cover"
                   />
                 )}
 
-                <div className="px-3 py-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    {item.media_type === 'bts'
-                      ? 'Behind the Scenes'
-                      : item.media_type === 'video'
-                        ? 'Video'
-                        : 'Photo'}
-                  </span>
+                {item.media_type === 'bts' && (
+                  <video
+                    src={item.media_url}
+                    controls
+                    className="aspect-square w-full object-cover"
+                  />
+                )}
+
+                <div className="px-2 py-2 text-sm text-gray-600">
+                  {item.media_type === 'photo'
+                    ? 'Photo'
+                    : item.media_type === 'video'
+                    ? 'Video'
+                    : 'Behind the Scenes'}
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
 
+      {/* Public Reviews */}
       <Card className="mt-8">
         <h2 className="text-lg font-semibold text-gray-900">
           Reviews
         </h2>
 
-        {reviewCount === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">
-            No reviews yet.
-          </p>
-        ) : (
-          <p className="mt-3 text-sm text-gray-600">
-            ★ {averageRating.toFixed(1)} based on {reviewCount}{' '}
-            review{reviewCount !== 1 ? 's' : ''}.
-          </p>
+        <p className="mt-2 text-sm text-gray-500">
+          ★ {averageRating.toFixed(1)} based on {reviewCount} review
+          {reviewCount !== 1 ? 's' : ''}.
+        </p>
+
+        {reviews && reviews.length > 0 && (
+          <div className="mt-5 space-y-4">
+            {reviews.map((review, index) => (
+              <div
+                key={`${review.created_at}-${index}`}
+                className="border-t border-gray-100 pt-4"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-500">
+                    {'★'.repeat(review.rating)}
+                    {'☆'.repeat(5 - review.rating)}
+                  </span>
+
+                  <span className="text-sm text-gray-500">
+                    {review.rating}/5
+                  </span>
+                </div>
+
+                {review.review?.trim() ? (
+                  <p className="mt-2 text-gray-700">
+                    {review.review}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-400">
+                    No written review.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </Card>
 
+      {/* Booking */}
       <Card className="mt-8">
         <h2 className="text-lg font-semibold text-gray-900">
           Request a booking
