@@ -1,69 +1,146 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { useEffect, useState } from 'react';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
+import { useRouter } from 'next/navigation';
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const photographerId = searchParams.get('photographer_id');
-
-    if (!photographerId) {
-      return NextResponse.json(
-        { error: 'photographer_id is required' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = createClient();
-
-    const { data: photographer, error: photographerError } =
-      await supabase
-        .from('photographers')
-        .select('id')
-        .eq('id', photographerId)
-        .maybeSingle();
-
-    if (photographerError) {
-      return NextResponse.json(
-        { error: photographerError.message },
-        { status: 500 }
-      );
-    }
-
-    if (!photographer) {
-      return NextResponse.json(
-        { error: 'Photographer not found' },
-        { status: 404 }
-      );
-    }
-
-    const { data: bookings, error: bookingsError } = await supabase
-      .from('bookings')
-      .select('event_date, status')
-      .eq('photographer_id', photographerId)
-      .in('status', ['pending', 'accepted']);
-
-    if (bookingsError) {
-      return NextResponse.json(
-        { error: bookingsError.message },
-        { status: 500 }
-      );
-    }
-
-    const unavailableDates = (bookings || [])
-      .map((booking) => booking.event_date)
-      .filter(Boolean);
-
-    return NextResponse.json({
-      unavailableDates,
-    });
-  } catch (error) {
-    console.error('Availability API error:', error);
-
-    return NextResponse.json(
-      { error: 'Unable to load photographer availability' },
-      { status: 500 }
-    );
-  }
+interface BookingFormProps {
+  photographerId: string;
 }
+
+export default function BookingForm({
+  photographerId,
+}: BookingFormProps) {
+  const router = useRouter();
+
+  const [eventDate, setEventDate] = useState('');
+  const [eventType, setEventType] = useState('');
+  const [location, setLocation] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingDates, setLoadingDates] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [unavailableDates, setUnavailableDates] = useState<string[]>([]);
+
+  const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    async function loadBookingAvailability() {
+      try {
+        const [bookingsRes, availabilityRes] = await Promise.all([
+          fetch(
+            `/api/bookings?photographer_id=${photographerId}`
+          ),
+          fetch(
+            `/api/photographer/availability?photographer_id=${photographerId}`
+          ),
+        ]);
+
+        if (!bookingsRes.ok) {
+          throw new Error('Failed to load booked dates');
+        }
+
+        if (!availabilityRes.ok) {
+          throw new Error(
+            'Failed to load photographer availability'
+          );
+        }
+
+        const bookingsData = await bookingsRes.json();
+        const availabilityData = await availabilityRes.json();
+
+        setBookedDates(bookingsData.bookedDates || []);
+        setUnavailableDates(
+          availabilityData.unavailableDates || []
+        );
+      } catch {
+        setError('Unable to load booking availability.');
+      } finally {
+        setLoadingDates(false);
+      }
+    }
+
+    loadBookingAvailability();
+  }, [photographerId]);
+
+  function handleDateChange(value: string) {
+    setError(null);
+
+    if (bookedDates.includes(value)) {
+      setEventDate('');
+      setError(
+        'This date is already booked. Please select another date.'
+      );
+      return;
+    }
+
+    if (unavailableDates.includes(value)) {
+      setEventDate('');
+      setError(
+        'This photographer is unavailable on the selected date. Please select another date.'
+      );
+      return;
+    }
+
+    setEventDate(value);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (bookedDates.includes(eventDate)) {
+      setError(
+        'This date is already booked. Please select another date.'
+      );
+      return;
+    }
+
+    if (unavailableDates.includes(eventDate)) {
+      setError(
+        'This photographer is unavailable on the selected date. Please select another date.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          photographer_id: photographerId,
+          event_date: eventDate,
+          event_type: eventType,
+          location,
+          message,
+        }),
+      });
+
+      const body = await res.json();
+
+      if (!res.ok) {
+        setError(
+          body.error || 'Something went wrong. Please try again.'
+        );
+        return;
+      }
+
+      setSuccess(true);
+      router.refresh();
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (success) {
+    return (
+      <p className="rounded-lg bg-green-50 p-4 text
