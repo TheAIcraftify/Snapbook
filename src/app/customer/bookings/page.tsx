@@ -57,7 +57,7 @@ export default async function CustomerBookingsPage() {
               {b.event_date} · {b.location}
             </p>
 
-            {b.status === 'completed' && b.photographer_id && (
+            {b.status === 'accepted' && b.photographer_id && (
               reviewedBookingIds.has(b.id) ? (
                 <p className="mt-4 text-sm text-green-600">
                   You have already reviewed this booking.
@@ -65,7 +65,6 @@ export default async function CustomerBookingsPage() {
               ) : (
                 <ReviewForm
                   bookingId={b.id}
-                  customerId={profile.id}
                   photographerId={b.photographer_id}
                 />
               )
