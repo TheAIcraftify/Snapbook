@@ -150,7 +150,9 @@ export default function PortfolioManager() {
           <select
             value={mediaType}
             onChange={(e) =>
-              setMediaType(e.target.value as PortfolioItem["media_type"])
+              setMediaType(
+                e.target.value as PortfolioItem["media_type"]
+              )
             }
             className="w-full rounded-md border border-gray-300 px-3 py-2"
           >
@@ -163,4 +165,80 @@ export default function PortfolioManager() {
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder
+            placeholder="Paste image or video URL"
+            className="w-full rounded-md border border-gray-300 px-3 py-2"
+            required
+          />
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {saving ? "Adding..." : "Add to portfolio"}
+          </button>
+        </form>
+
+        {error && (
+          <p className="mt-3 text-sm text-red-600">
+            {error}
+          </p>
+        )}
+
+        {loading ? (
+          <p className="mt-5 text-sm text-gray-500">
+            Loading portfolio...
+          </p>
+        ) : items.length === 0 ? (
+          <p className="mt-5 text-sm text-gray-500">
+            No portfolio items added yet.
+          </p>
+        ) : (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="overflow-hidden rounded-lg border border-gray-200"
+              >
+                {item.media_type === "photo" ? (
+                  <img
+                    src={item.url}
+                    alt="Portfolio work"
+                    className="h-52 w-full object-cover"
+                  />
+                ) : (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-52 items-center justify-center bg-gray-100 text-sm font-medium text-blue-600"
+                  >
+                    {item.media_type === "video"
+                      ? "🎥 Open Video"
+                      : "🎬 Open Behind the Scenes"}
+                  </a>
+                )}
+
+                <div className="flex items-center justify-between p-3">
+                  <span className="text-sm font-medium capitalize text-gray-700">
+                    {item.media_type === "bts"
+                      ? "Behind the Scenes"
+                      : item.media_type}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteItem(item.id)}
+                    className="text-sm text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
