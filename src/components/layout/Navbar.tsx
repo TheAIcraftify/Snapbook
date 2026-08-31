@@ -31,7 +31,6 @@ export default function Navbar() {
 
     try {
       const response = await fetch('/api/notifications', {
-        method: 'GET',
         cache: 'no-store',
       });
 
@@ -50,11 +49,7 @@ export default function Navbar() {
   }
 
   useEffect(() => {
-    let mounted = true;
-
     supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-
       const userEmail = data.user?.email ?? null;
       setEmail(userEmail);
 
@@ -79,7 +74,6 @@ export default function Navbar() {
     });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
     };
   }, [supabase]);
@@ -106,7 +100,7 @@ export default function Navbar() {
         )
       );
     } catch {
-      // Keep the notification UI working even if marking as read fails.
+      // Ignore update errors.
     }
   }
 
@@ -128,7 +122,6 @@ export default function Navbar() {
   return (
     <header className="border-b border-gray-200 bg-white">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        {/* Logo */}
         <Link
           href="/"
           className="text-xl font-bold text-brand-600"
@@ -137,7 +130,6 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-4 text-sm">
-          {/* Browse */}
           <Link
             href="/photographers"
             className="text-gray-700 hover:text-brand-600"
@@ -147,13 +139,11 @@ export default function Navbar() {
 
           {email ? (
             <>
-              {/* Notifications */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => {
                     const nextState = !showNotifications;
-
                     setShowNotifications(nextState);
 
                     if (nextState) {
@@ -175,7 +165,6 @@ export default function Navbar() {
 
                 {showNotifications && (
                   <div className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-                    {/* Header */}
                     <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                       <h3 className="font-semibold text-gray-900">
                         Notifications
@@ -188,7 +177,6 @@ export default function Navbar() {
                       )}
                     </div>
 
-                    {/* Notifications */}
                     <div className="max-h-96 overflow-y-auto">
                       {loadingNotifications ? (
                         <div className="px-4 py-8 text-center text-sm text-gray-500">
@@ -204,4 +192,74 @@ export default function Navbar() {
                             key={notification.id}
                             type="button"
                             onClick={() =>
-                              handleNotification
+                              handleNotificationClick(notification)
+                            }
+                            className={`block w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 ${
+                              !notification.is_read
+                                ? 'bg-blue-50/50'
+                                : ''
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                                  notification.is_read
+                                    ? 'bg-transparent'
+                                    : 'bg-brand-500'
+                                }`}
+                              />
+
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900">
+                                  {notification.title}
+                                </p>
+
+                                <p className="mt-1 text-sm text-gray-600">
+                                  {notification.message}
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-400">
+                                  {new Date(
+                                    notification.created_at
+                                  ).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-gray-700 hover:text-brand-600"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-gray-700 hover:text-brand-600"
+              >
+                Log in
+              </Link>
+
+              <Link
+                href="/signup"
+                className="rounded-lg bg-brand-500 px-3 py-1.5 text-white hover:bg-brand-600"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
+      </nav>
+    </header>
+  );
+}
