@@ -88,7 +88,55 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data, error } = await supabase
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keyId || !keySecret) {
+      return NextResponse.json(
+        { error: 'Razorpay is not configured.' },
+        { status: 500 }
+      );
+    }
+
+    const auth = Buffer.from(
+      `${keyId}:${keySecret}`
+    ).toString('base64');
+
+    const orderResponse = await fetch(
+      'https://api.razorpay.com/v1/orders',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: Math.round(tipAmount * 100),
+          currency: 'INR',
+          receipt: `tip_${booking_id}_${Date.now()}`,
+          notes: {
+            booking_id,
+            customer_id: profile.id,
+            photographer_id,
+          },
+        }),
+      }
+    );
+
+    const order = await orderResponse.json();
+
+    if (!orderResponse.ok) {
+      return NextResponse.json(
+        {
+          error:
+            order?.error?.description ||
+            'Unable to create Razorpay order.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: tip, error: tipError } = await supabase
       .from('tips')
       .insert({
         booking_id,
@@ -96,13 +144,14 @@ export async function POST(request: Request) {
         customer_id: profile.id,
         amount: tipAmount,
         status: 'pending',
+        razorpay_order_id: order.id,
       })
       .select()
       .single();
 
-    if (error) {
+    if (tipError) {
       return NextResponse.json(
-        { error: error.message },
+        { error: tipError.message },
         { status: 400 }
       );
     }
@@ -110,7 +159,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
-        tip: data,
+        tip,
+        order: {
+          id: order.id,
+          amount: order.amount,
+          currency: order.currency,
+        },
+        key_id: keyId,
       },
       { status: 201 }
     );
