@@ -19,9 +19,25 @@ export default function TipForm({
   const [message, setMessage] = useState('');
 
   const selectedAmount =
-    amount === 0
-      ? Number(customAmount)
-      : amount;
+    amount === 0 ? Number(customAmount) : amount;
+
+  async function loadRazorpay() {
+    if (typeof window === 'undefined') return false;
+
+    if ((window as any).Razorpay) {
+      return true;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const script = document.createElement('script');
+
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+
+      document.body.appendChild(script);
+    });
+  }
 
   async function submitTip() {
     setMessage('');
@@ -39,6 +55,15 @@ export default function TipForm({
     setLoading(true);
 
     try {
+      const loaded = await loadRazorpay();
+
+      if (!loaded) {
+        setMessage(
+          'Unable to load Razorpay. Please check your internet connection.'
+        );
+        return;
+      }
+
       const response = await fetch('/api/tips', {
         method: 'POST',
         headers: {
@@ -54,18 +79,92 @@ export default function TipForm({
       const result = await response.json();
 
       if (!response.ok) {
-        setMessage(result.error || 'Unable to send tip.');
+        setMessage(result.error || 'Unable to create tip.');
         return;
       }
 
-      setMessage(
-        'Tip created successfully. Payment will be available soon.'
+      const Razorpay = (window as any).Razorpay;
+
+      const options = {
+        key: result.key_id,
+        amount: result.order.amount,
+        currency: result.order.currency,
+        name: 'Snapbook',
+        description: 'Tip for photographer',
+        order_id: result.order.id,
+
+        handler: async function (paymentResponse: any) {
+          try {
+            const verifyResponse = await fetch(
+              '/api/tips/verify',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  tip_id: result.tip.id,
+                  razorpay_order_id:
+                    paymentResponse.razorpay_order_id,
+                  razorpay_payment_id:
+                    paymentResponse.razorpay_payment_id,
+                  razorpay_signature:
+                    paymentResponse.razorpay_signature,
+                }),
+              }
+            );
+
+            const verifyResult =
+              await verifyResponse.json();
+
+            if (!verifyResponse.ok) {
+              setMessage(
+                verifyResult.error ||
+                  'Payment verification failed.'
+              );
+              return;
+            }
+
+            setMessage(
+              'Tip payment successful. Thank you!'
+            );
+
+            setAmount(null);
+            setCustomAmount('');
+          } catch {
+            setMessage(
+              'Payment completed, but verification failed.'
+            );
+          }
+        },
+
+        modal: {
+          ondismiss: function () {
+            setMessage('Payment cancelled.');
+          },
+        },
+
+        theme: {
+          color: '#2563eb',
+        },
+      };
+
+      const razorpay = new Razorpay(options);
+
+      razorpay.on(
+        'payment.failed',
+        function () {
+          setMessage(
+            'Payment failed. Please try again.'
+          );
+        }
       );
 
-      setAmount(null);
-      setCustomAmount('');
+      razorpay.open();
     } catch {
-      setMessage('Something went wrong. Please try again.');
+      setMessage(
+        'Something went wrong. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -130,7 +229,9 @@ export default function TipForm({
             min="1"
             step="1"
             value={customAmount}
-            onChange={(e) => setCustomAmount(e.target.value)}
+            onChange={(e) =>
+              setCustomAmount(e.target.value)
+            }
             placeholder="₹ Enter amount"
             disabled={loading}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
