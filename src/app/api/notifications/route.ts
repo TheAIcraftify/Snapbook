@@ -8,7 +8,10 @@ export async function GET() {
 
     if (!profile) {
       return NextResponse.json(
-        { error: 'You must be logged in.' },
+        {
+          error: 'You must be logged in.',
+          debug_profile_id: null,
+        },
         { status: 401 }
       );
     }
@@ -25,17 +28,26 @@ export async function GET() {
 
     if (error) {
       return NextResponse.json(
-        { error: error.message },
+        {
+          error: error.message,
+          debug_profile_id: profile.id,
+        },
         { status: 400 }
       );
     }
 
     return NextResponse.json({
       notifications: notifications || [],
+      debug_profile_id: profile.id,
     });
-  } catch {
+  } catch (error) {
+    console.error('NOTIFICATION API ERROR:', error);
+
     return NextResponse.json(
-      { error: 'Unable to load notifications.' },
+      {
+        error: 'Unable to load notifications.',
+        debug_profile_id: null,
+      },
       { status: 500 }
     );
   }
@@ -83,7 +95,9 @@ export async function PATCH(request: Request) {
       success: true,
       notification: data,
     });
-  } catch {
+  } catch (error) {
+    console.error('NOTIFICATION PATCH ERROR:', error);
+
     return NextResponse.json(
       { error: 'Unable to update notification.' },
       { status: 500 }
