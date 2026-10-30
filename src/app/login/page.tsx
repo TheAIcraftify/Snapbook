@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -11,6 +12,7 @@ import Button from '@/components/ui/Button';
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,36 +23,56 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (signInError) {
       setError(signInError.message);
       setLoading(false);
       return;
-    } const { data: profile } = await supabase
+    }
+
+    if (!data.user) {
+      setError('Login successful, but user details were not returned.');
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', data.user.id)
       .single();
 
-    setLoading(false);
-
-    if (profile?.role === 'photographer') {
-      router.push('/photographer/dashboard');
-    } else if (profile?.role === 'admin') {
-      router.push('/admin/dashboard');
-    } else {
-      router.push('/customer/dashboard');
+    if (profileError || !profile) {
+      setError(
+        `Login successful, but profile could not be loaded: ${
+          profileError?.message || 'Profile not found'
+        }`
+      );
+      setLoading(false);
+      return;
     }
+
+    let destination = '/customer/dashboard';
+
+    if (profile.role === 'admin') {
+      destination = '/admin/dashboard';
+    } else if (profile.role === 'photographer') {
+      destination = '/photographer/dashboard';
+    }
+
+    router.replace(destination);
     router.refresh();
   }
 
   return (
     <div className="mx-auto max-w-sm px-4 py-16">
       <h1 className="text-2xl font-bold text-gray-900">Log in</h1>
+
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
         <Input
           label="Email"
@@ -59,22 +81,29 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
+
         <PasswordInput
           label="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        {error && (
+          <p className="text-sm text-red-600">{error}</p>
+        )}
+
         <Button type="submit" disabled={loading}>
           {loading ? 'Logging in...' : 'Log in'}
         </Button>
       </form>
+
       <p className="mt-4 text-sm text-gray-600">
         <Link href="/forgot-password" className="text-brand-600 font-medium">
           Forgot password?
         </Link>
       </p>
+
       <p className="mt-2 text-sm text-gray-600">
         Don&apos;t have an account?{' '}
         <Link href="/signup" className="text-brand-600 font-medium">
